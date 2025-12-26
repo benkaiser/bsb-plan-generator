@@ -1,0 +1,21 @@
+{
+  "name": "bsb-epub-plan-generator",
+  "version": "1.0.0",
+  "description": "Bible plan generator for BSB EPUB",
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild src/app.js --bundle --outfile=dist/app.js --minify",
+    "dev": "esbuild src/app.js --bundle --outfile=dist/app.js --watch"
+  },
+  "dependencies": {
+    "htm": "^3.1.1",
+    "jszip": "^3.10.1",
+    "preact": "^10.28.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/preset-react": "^7.28.5",
+    "esbuild": "^0.19.0",
+    "esbuild-plugin-babel": "^0.2.3"
+  }
+}

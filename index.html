@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bible Reading Plan Generator</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        :root {
+            --primary: #10ad91;
+        }
+        body {
+            padding: 2rem 0;
+        }
+        .container {
+            max-width: 800px;
+        }
+        .preview-item {
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+        .preview-date {
+            font-weight: bold;
+            margin-right: 1rem;
+            display: inline-block;
+            width: 120px;
+        }
+        .book-selection {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 0.5rem;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        .book-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+        .book-item input {
+            margin-bottom: 0;
+            margin-right: 0.5rem;
+        }
+        .day-selection {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        .day-item {
+            display: flex;
+            align-items: center;
+        }
+        .day-item input {
+            margin-bottom: 0;
+            margin-right: 0.5rem;
+        }
+        #app {
+            margin-top: 2rem;
+        }
+    </style>
+    <style>
+        :root {
+            --spacing: 1rem;
+        }
+        .book-selection, .day-selection {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: var(--spacing);
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--muted-border-color);
+            padding: 0.5rem;
+            border-radius: var(--border-radius);
+        }
+        .book-item, .day-item {
+            margin-bottom: 0 !important;
+            font-size: 0.9rem;
+        }
+        .preview-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid var(--muted-border-color);
+        }
+        .preview-date {
+            font-weight: bold;
+            margin-right: 1rem;
+        }
+        .chapter-container {
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <h1>Bible Reading Plan Generator</h1>
+        <p>Generate a custom Bible reading plan as an EPUB file.</p>
+        <div id="app"></div>
+    </main>
+    <script src="dist/app.js"></script>
+</body>
+</html>
