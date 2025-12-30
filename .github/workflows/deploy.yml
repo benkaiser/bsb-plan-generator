@@ -24,9 +24,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Checkout LFS objects (audio_processed only)
-        run: git lfs pull --include="audio_processed/**"
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -42,23 +39,13 @@ jobs:
       - name: Create .nojekyll
         run: touch .nojekyll
 
-      - name: Prepare deployment directory
-        run: |
-          mkdir _site
-          cp index.html _site/
-          cp -r dist _site/
-          cp -r img _site/
-          cp -r bsb_unzipped _site/
-          cp -r audio_processed _site/
-          cp .nojekyll _site/
-
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '_site'
+          path: '.'
 
       - name: Deploy to GitHub Pages
         id: deployment
