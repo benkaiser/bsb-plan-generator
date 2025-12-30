@@ -528,6 +528,9 @@ License Information:
             <header style="text-align: center; margin-bottom: 2rem;">
                 <h1>BSB Bible Plan Generator</h1>
                 <p>Generate custom EPUB reading plans and corresponding daily Audiobooks.</p>
+                <p style="max-width: 600px; margin: 0 auto; font-size: 0.9rem; color: var(--muted-color);">
+                    The <strong>Berean Standard Bible (BSB)</strong> was chosen for this project because it is a high-quality, modern English translation that has been dedicated to the public domain.
+                </p>
             </header>
 
             <section>
