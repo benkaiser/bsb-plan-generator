@@ -33,15 +33,39 @@ const App = () => {
 
     const setPreset = (preset) => {
         setSelectionMode('custom');
-        if (preset === 'gospels') {
-            setSelectedBooks(['Matthew', 'Mark', 'Luke', 'John']);
+        let booksToToggle = [];
+        if (preset === 'all') {
+            setSelectedBooks(BIBLE_BOOKS.map(b => b.name));
+            return;
+        } else if (preset === 'none') {
+            setSelectedBooks([]);
+            return;
+        } else if (preset === 'gospels') {
+            booksToToggle = ['Matthew', 'Mark', 'Luke', 'John'];
         } else if (preset === 'pentateuch') {
-            setSelectedBooks(['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy']);
-        } else if (preset === 'paul') {
-            setSelectedBooks(['Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians', 'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy', '2 Timothy', 'Titus', 'Philemon']);
+            booksToToggle = ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'];
+        } else if (preset === 'history') {
+            booksToToggle = ['Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel', '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther'];
         } else if (preset === 'wisdom') {
-            setSelectedBooks(['Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Song of Solomon']);
+            booksToToggle = ['Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Songs'];
+        } else if (preset === 'major-prophets') {
+            booksToToggle = ['Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel'];
+        } else if (preset === 'minor-prophets') {
+            booksToToggle = ['Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi'];
+        } else if (preset === 'paul') {
+            booksToToggle = ['Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians', 'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy', '2 Timothy', 'Titus', 'Philemon'];
+        } else if (preset === 'general-epistles') {
+            booksToToggle = ['Hebrews', 'James', '1 Peter', '2 Peter', '1 John', '2 John', '3 John', 'Jude', 'Revelation'];
         }
+
+        setSelectedBooks(prev => {
+            const allPresent = booksToToggle.every(b => prev.includes(b));
+            if (allPresent) {
+                return prev.filter(b => !booksToToggle.includes(b));
+            } else {
+                return [...new Set([...prev, ...booksToToggle])];
+            }
+        });
     };
 
     const toggleDay = (day) => {
@@ -173,6 +197,18 @@ const App = () => {
 
         return days;
     }, [selectionMode, selectedBooks, otChaptersPerDay, ntChaptersPerDay, psalmsPerDay, proverbsPerDay, splitPsalms, splitProverbs, planOrder, useDates, startDate, readingDays, padWithRepeats]);
+
+    const audioStats = useMemo(() => {
+        const allChapters = plan.flatMap(day => day.chapters.map(ch => ch.file));
+        const uniqueChapters = new Set(allChapters).size;
+        const totalChapters = allChapters.length;
+        return {
+            uniqueChapters,
+            totalChapters,
+            downloadSizeMB: uniqueChapters,
+            totalSizeMB: totalChapters
+        };
+    }, [plan]);
 
     const generateEpub = async () => {
         setIsGenerating(true);
@@ -314,6 +350,73 @@ ${bodyContent}
         }
     };
 
+    const generateAudiobook = async () => {
+        if (!('showDirectoryPicker' in window)) {
+            alert('Audiobook generation is only supported in Chrome and Edge. Firefox and Safari do not yet support the necessary File System APIs.');
+            return;
+        }
+
+        let dirHandle;
+        try {
+            dirHandle = await window.showDirectoryPicker();
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+            throw err;
+        }
+
+        setIsGenerating(true);
+        setStatus('Starting Audiobook generation...');
+        try {
+            const CONCURRENCY = 10;
+            let completedDays = 0;
+            const padLength = plan.length.toString().length;
+
+            const processDay = async (day, index) => {
+                const dayNum = (index + 1).toString().padStart(padLength, '0');
+
+                let datePart = '';
+                if (day.date) {
+                    const y = day.date.getFullYear();
+                    const m = (day.date.getMonth() + 1).toString().padStart(2, '0');
+                    const d = day.date.getDate().toString().padStart(2, '0');
+                    datePart = ` - ${y}-${m}-${d}`;
+                }
+
+                // Create a summary of chapters for the filename
+                const chaptersSummary = day.chapters.map(ch => `${ch.book} ${ch.chapter}`).join(', ');
+                const safeSummary = chaptersSummary.replace(/[/\\?%*:|"<>]/g, '-');
+                const fileName = `Day${dayNum}${datePart} - ${safeSummary}.mp3`;
+
+                const blobs = await Promise.all(day.chapters.map(async (ch) => {
+                    const response = await fetch(`audio_processed/${ch.file}.mp3`);
+                    if (!response.ok) throw new Error(`Failed to fetch audio for ${ch.book} ${ch.chapter}`);
+                    return await response.blob();
+                }));
+
+                const concatenatedBlob = new Blob(blobs, { type: 'audio/mpeg' });
+                const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(concatenatedBlob);
+                await writable.close();
+
+                completedDays++;
+                setStatus(`Generated ${completedDays} of ${plan.length} days...`);
+            };
+
+            for (let i = 0; i < plan.length; i += CONCURRENCY) {
+                const chunk = plan.slice(i, i + CONCURRENCY);
+                await Promise.all(chunk.map((day, index) => processDay(day, i + index)));
+            }
+
+            setStatus('Audiobook generated successfully!');
+        } catch (err) {
+            console.error(err);
+            setStatus('Error generating audiobook: ' + err.message);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     const fetchChapterContent = async (fileNum) => {
         const url = `bsb_unzipped/bsb - final - 7-18-21/OEBPS/Text/${fileNum}.htm`;
         const response = await fetch(url);
@@ -339,12 +442,17 @@ ${bodyContent}
 
     return html`
         <div>
+            <header style="text-align: center; margin-bottom: 2rem;">
+                <h1>BSB Bible Plan Generator</h1>
+                <p>Generate custom EPUB reading plans and corresponding daily Audiobooks.</p>
+            </header>
+
             <section>
-                <h2>Reading Selection</h2>
+                <h2>1. Reading Selection</h2>
                 <div class="grid">
                     <label>
                         <input type="radio" name="selectionMode" value="all" checked=${selectionMode === 'all'} onChange=${() => setSelectionMode('all')} />
-                        All Bible
+                        Whole Bible
                     </label>
                     <label>
                         <input type="radio" name="selectionMode" value="custom" checked=${selectionMode === 'custom'} onChange=${() => setSelectionMode('custom')} />
@@ -354,11 +462,19 @@ ${bodyContent}
 
                 ${selectionMode === 'custom' && html`
                     <div>
-                        <div class="grid">
-                            <button type="button" onClick=${() => setPreset('gospels')}>Gospels</button>
-                            <button type="button" onClick=${() => setPreset('pentateuch')}>Pentateuch</button>
-                            <button type="button" onClick=${() => setPreset('paul')}>Paul's Letters</button>
-                            <button type="button" onClick=${() => setPreset('wisdom')}>Wisdom Books</button>
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--muted-border-color); padding-bottom: 1rem;">
+                            <button type="button" class="outline secondary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; margin-bottom: 0; width: auto;" onClick=${() => setPreset('all')}>Select All</button>
+                            <button type="button" class="outline secondary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; margin-bottom: 0; width: auto;" onClick=${() => setPreset('none')}>Select None</button>
+                        </div>
+                        <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; margin-bottom: 1rem;">
+                            <button type="button" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;" onClick=${() => setPreset('pentateuch')}>Pentateuch</button>
+                            <button type="button" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;" onClick=${() => setPreset('history')}>History</button>
+                            <button type="button" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;" onClick=${() => setPreset('wisdom')}>Wisdom</button>
+                            <button type="button" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;" onClick=${() => setPreset('major-prophets')}>Major Prophets</button>
+                            <button type="button" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;" onClick=${() => setPreset('minor-prophets')}>Minor Prophets</button>
+                            <button type="button" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;" onClick=${() => setPreset('gospels')}>Gospels</button>
+                            <button type="button" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;" onClick=${() => setPreset('paul')}>Paul's Letters</button>
+                            <button type="button" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;" onClick=${() => setPreset('general-epistles')}>General Epistles</button>
                         </div>
                         <div class="book-selection">
                             ${BIBLE_BOOKS.map(book => html`
@@ -401,7 +517,7 @@ ${bodyContent}
             </section>
 
             <section>
-                <h2>Plan Style</h2>
+                <h2>2. Plan Style</h2>
                 <div class="grid" style="align-items: end;">
                     <label>Order:
                         <select value=${planOrder} onChange=${(e) => setPlanOrder(e.target.value)}>
@@ -451,7 +567,7 @@ ${bodyContent}
             </section>
 
             <section>
-                <h2>Plan Preview</h2>
+                <h2>3. Generate Plan</h2>
                 <p>${plan.length} days total</p>
                 <div style="max-height: 400px; overflow-y: auto; border: 1px solid var(--muted-border-color); padding: 1rem; margin-bottom: 1rem; border-radius: var(--border-radius);">
                     ${plan.slice(0, 5).map((day, i) => html`
@@ -478,10 +594,28 @@ ${bodyContent}
                         </div>
                     `)}
                 </div>
-                <button onClick=${generateEpub} disabled=${isGenerating || plan.length === 0}>
-                    ${isGenerating ? 'Generating...' : 'Download EPUB'}
-                </button>
-                ${status && html`<p><small>${status}</small></p>`}
+                <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <button onClick=${generateEpub} disabled=${isGenerating || plan.length === 0}>
+                            ${isGenerating ? 'Generating...' : 'Download EPUB'}
+                        </button>
+                        <button onClick=${generateAudiobook} disabled=${isGenerating || plan.length === 0} class="secondary">
+                            ${isGenerating ? 'Generating...' : 'Generate Audiobook'}
+                        </button>
+                    </div>
+
+                    ${plan.length > 0 && html`
+                        <div style="background: var(--card-section-background-color); padding: 1rem; border-radius: var(--border-radius); border: 1px solid var(--muted-border-color);">
+                            <p style="margin: 0;"><strong>Audiobook Info:</strong></p>
+                            <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem; font-size: 0.9rem;">
+                                <li>Estimated: ${audioStats.downloadSizeMB}MB download, ${audioStats.totalSizeMB}MB total on disk.</li>
+                                <li>Requires a folder selection to save daily MP3 files.</li>
+                                <li style="color: var(--secondary);">Note: Audiobook generation is only supported in <strong>Chrome</strong> and <strong>Edge</strong>.</li>
+                            </ul>
+                        </div>
+                    `}
+                </div>
+                ${status && html`<p style="margin-top: 1rem;"><small>${status}</small></p>`}
             </section>
         </div>
     `;
