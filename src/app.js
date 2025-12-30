@@ -363,10 +363,10 @@ ${bodyContent}
   <docTitle><text>Bible Reading Plan</text></docTitle>
   <navMap>
     ${navPoints.join('\n    ')}
-  </navMap>
+    </navMap>
 </ncx>`);
 
-            const blob = await zip.generateAsync({ type: 'blob' });
+            const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
