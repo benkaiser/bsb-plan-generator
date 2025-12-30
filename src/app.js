@@ -305,6 +305,37 @@ ${bodyContent}
                 </navPoint>`);
             }
 
+            // Generate credits page
+            const creditsFileName = 'credits.xhtml';
+            const creditsContent = `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Credits</title>
+<link rel="stylesheet" href="../Styles/stylesheet.css" type="text/css"/>
+<link rel="stylesheet" href="../Styles/page_styles.css" type="text/css"/>
+</head>
+<body>
+<h1>Credits</h1>
+<p>This Bible reading plan was generated using the <strong>BSB Bible Plan Generator</strong>.</p>
+<p>
+    <strong>Source Code:</strong> <a href="https://github.com/benkaiser/bsb-plan-generator">https://github.com/benkaiser/bsb-plan-generator</a><br/>
+    <strong>Website:</strong> <a href="https://benkaiser.github.io/bsb-plan-generator/">https://benkaiser.github.io/bsb-plan-generator/</a>
+</p>
+<h2>License Information</h2>
+<p>
+    <strong>Berean Standard Bible (BSB):</strong> The Berean Standard Bible is public domain. <a href="https://berean.bible/">https://berean.bible/</a>
+</p>
+</body>
+</html>`;
+            text.file(creditsFileName, creditsContent);
+            manifestItems.push(`<item id="credits" href="Text/${creditsFileName}" media-type="application/xhtml+xml"/>`);
+            spineItems.push(`<itemref idref="credits"/>`);
+            navPoints.push(`<navPoint id="nav_credits" playOrder="${plan.length + 1}">
+                <navLabel><text>Credits</text></navLabel>
+                <content src="Text/${creditsFileName}"/>
+            </navPoint>`);
+
             // content.opf
             oebps.file('content.opf', `<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="uuid_id" version="2.0">
@@ -442,6 +473,22 @@ ${bodyContent}
                 dayChapterBlobs[i] = null; // Free memory
                 writeIndex = i;
             }
+
+            const creditsText = `BSB Bible Reading Plan - Credits
+
+This plan was generated using the BSB Bible Plan Generator.
+
+Source Code: https://github.com/benkaiser/bsb-plan-generator
+Website: https://benkaiser.github.io/bsb-plan-generator/
+
+License Information:
+- Berean Standard Bible (BSB): The Berean Standard Bible is public domain. https://berean.bible/
+- Bible Audio: The audio recording is by Barry Hays and has also been placed in the public domain.
+`;
+            const creditsHandle = await dirHandle.getFileHandle('CREDITS.txt', { create: true });
+            const creditsWritable = await creditsHandle.createWritable();
+            await creditsWritable.write(creditsText);
+            await creditsWritable.close();
 
             await Promise.all(workers);
             setStatus('Audiobook generated successfully!');

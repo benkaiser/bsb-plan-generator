@@ -57,3 +57,4 @@ If you wish to modify the application:
 
 - **Source Code**: This project's source code is licensed under the [MIT License](LICENSE).
 - **Bible Text**: The [Berean Standard Bible](https://berean.bible/) (BSB) is public domain. No license is required to use or distribute the generated EPUBs.
+- **Bible Audio**: The audio recording is by Barry Hays and has also been placed in the public domain.
