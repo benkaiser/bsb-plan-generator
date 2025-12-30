@@ -490,6 +490,20 @@ License Information:
             await creditsWritable.write(creditsText);
             await creditsWritable.close();
 
+            // Write cover image
+            try {
+                const coverResponse = await fetch('img/cover.jpg');
+                if (coverResponse.ok) {
+                    const coverBlob = await coverResponse.blob();
+                    const coverHandle = await dirHandle.getFileHandle('cover.jpg', { create: true });
+                    const coverWritable = await coverHandle.createWritable();
+                    await coverWritable.write(coverBlob);
+                    await coverWritable.close();
+                }
+            } catch (e) {
+                console.error('Failed to write cover image', e);
+            }
+
             await Promise.all(workers);
             setStatus('Audiobook generated successfully!');
         } catch (err) {
