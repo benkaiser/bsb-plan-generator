@@ -53,7 +53,13 @@ const App = () => {
     const [planOrder, setPlanOrder] = useState<PlanOrder>('mixed');
     const [padWithRepeats, setPadWithRepeats] = useState<boolean>(false);
     const [useDates, setUseDates] = useState<boolean>(true);
-    const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [startDate, setStartDate] = useState<string>(() => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    });
     const [readingDays, setReadingDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 0]);
     const [status, setStatus] = useState<string>('');
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
