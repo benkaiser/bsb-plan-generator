@@ -1,30 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <!-- Transparent background with proper rounded corners -->
   <rect width="512" height="512" fill="none"/>
-  
+
   <!-- Rounded purple background -->
   <rect x="32" y="32" width="448" height="448" rx="80" fill="#6B7FDB"/>
-  
+
   <!-- Simple Open Book - Larger and Centered -->
   <g transform="translate(256, 256)">
     <!-- Left Page -->
-    <path d="M -160 -120 L -160 140 Q -160 160 -140 160 L -10 160 L -10 -120 Z" 
+    <path d="M -160 -120 L -160 140 Q -160 160 -140 160 L -10 160 L -10 -120 Z"
           fill="#FFFFFF"/>
-    
+
     <!-- Right Page -->
-    <path d="M 160 -120 L 160 140 Q 160 160 140 160 L 10 160 L 10 -120 Z" 
+    <path d="M 160 -120 L 160 140 Q 160 160 140 160 L 10 160 L 10 -120 Z"
           fill="#F7FAFC"/>
-    
+
     <!-- Center Binding Shadow -->
     <rect x="-10" y="-120" width="20" height="280" fill="#E2E8F0"/>
-    
+
     <!-- Left Page Lines (minimal for clarity) -->
     <line x1="-140" y1="-70" x2="-30" y2="-70" stroke="#6B7FDB" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
     <line x1="-140" y1="-20" x2="-30" y2="-20" stroke="#6B7FDB" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
     <line x1="-140" y1="30" x2="-30" y2="30" stroke="#6B7FDB" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
     <line x1="-140" y1="80" x2="-30" y2="80" stroke="#6B7FDB" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
     <line x1="-140" y1="130" x2="-30" y2="130" stroke="#6B7FDB" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
-    
+
     <!-- Right Page Lines -->
     <line x1="30" y1="-70" x2="140" y2="-70" stroke="#6B7FDB" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
     <line x1="30" y1="-20" x2="140" y2="-20" stroke="#6B7FDB" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
