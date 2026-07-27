@@ -135,11 +135,9 @@ const App = () => {
     };
 
     const addGroup = (): void => {
-        setCustomGroups(prev => {
-            const id = prev.reduce((max, group) => Math.max(max, group.id), 0) + 1;
-            setExpandedGroup(id);
-            return [...prev, { id, name: `Group ${prev.length + 1}`, books: [], chaptersPerDay: 1, repeat: false }];
-        });
+        const id = customGroups.reduce((max, group) => Math.max(max, group.id), 0) + 1;
+        setCustomGroups(prev => [...prev, { id, name: `Group ${prev.length + 1}`, books: [], chaptersPerDay: 1, repeat: false }]);
+        setExpandedGroup(id);
     };
 
     const removeGroup = (id: number): void => {
