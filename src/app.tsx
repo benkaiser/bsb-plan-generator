@@ -2,24 +2,25 @@ import { render } from 'preact';
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { JSX } from 'preact';
 import JSZip from 'jszip';
-import { bibleData as BIBLE_BOOKS, BibleBook } from './bibleData';
+import { bibleData as BIBLE_BOOKS } from './bibleData';
+import type { BibleBook } from './bibleData';
+import {
+    assignDates,
+    buildGroupDays,
+    buildScheduledDays,
+    filterChapterHtml,
+    formatChapter,
+    hasPartialChapters
+} from './planLogic';
+import type { Chapter, Day, ReadingGroup } from './planLogic';
+import { PRESET_PLANS, getPresetPlan } from './presetPlans';
+import type { PresetPlanId } from './presetPlans';
 
 // Extend Window interface for File System Access API
 declare global {
     interface Window {
         showDirectoryPicker(): Promise<FileSystemDirectoryHandle>;
     }
-}
-
-interface Chapter {
-    book: string;
-    chapter: number;
-    file: number;
-}
-
-interface Day {
-    date: Date | null;
-    chapters: Chapter[];
 }
 
 interface AudioStats {
@@ -30,7 +31,8 @@ interface AudioStats {
 }
 
 type SelectionMode = 'all' | 'custom';
-type PlanOrder = 'mixed' | 'sequential';
+type PlanOrder = 'mixed' | 'sequential' | 'groups';
+type PlanType = 'custom' | PresetPlanId;
 type Preset = 'all' | 'none' | 'gospels' | 'pentateuch' | 'history' | 'wisdom' | 'major-prophets' | 'minor-prophets' | 'paul' | 'general-epistles';
 type BibleVersion = 'bsb' | 'kjv';
 
@@ -42,8 +44,14 @@ interface ChapterWithIndex {
     chapter: number;
 }
 
+const DEFAULT_GROUPS: ReadingGroup[] = [
+    { id: 1, name: 'Old Testament', books: BIBLE_BOOKS.slice(0, 39).map(b => b.name), chaptersPerDay: 3, repeat: false },
+    { id: 2, name: 'New Testament', books: BIBLE_BOOKS.slice(39).map(b => b.name), chaptersPerDay: 1, repeat: false }
+];
+
 const App = () => {
     const [bibleVersion, setBibleVersion] = useState<BibleVersion>('bsb');
+    const [planType, setPlanType] = useState<PlanType>('custom');
     const [selectionMode, setSelectionMode] = useState<SelectionMode>('all');
     const [selectedBooks, setSelectedBooks] = useState<string[]>(BIBLE_BOOKS.map(b => b.name));
     const [otChaptersPerDay, setOtChaptersPerDay] = useState<number>(3);
@@ -53,6 +61,9 @@ const App = () => {
     const [splitPsalms, setSplitPsalms] = useState<boolean>(false);
     const [splitProverbs, setSplitProverbs] = useState<boolean>(false);
     const [planOrder, setPlanOrder] = useState<PlanOrder>('mixed');
+    const [customGroups, setCustomGroups] = useState<ReadingGroup[]>(DEFAULT_GROUPS);
+    const [expandedGroup, setExpandedGroup] = useState<number | null>(null);
+    const [cycleDays, setCycleDays] = useState<number>(365);
     const [padWithRepeats, setPadWithRepeats] = useState<boolean>(false);
     const [useDates, setUseDates] = useState<boolean>(true);
     const [startDate, setStartDate] = useState<string>(() => {
@@ -119,7 +130,48 @@ const App = () => {
         );
     };
 
+    const updateGroup = (id: number, changes: Partial<ReadingGroup>): void => {
+        setCustomGroups(prev => prev.map(group => group.id === id ? { ...group, ...changes } : group));
+    };
+
+    const addGroup = (): void => {
+        setCustomGroups(prev => {
+            const id = prev.reduce((max, group) => Math.max(max, group.id), 0) + 1;
+            setExpandedGroup(id);
+            return [...prev, { id, name: `Group ${prev.length + 1}`, books: [], chaptersPerDay: 1, repeat: false }];
+        });
+    };
+
+    const removeGroup = (id: number): void => {
+        setCustomGroups(prev => prev.filter(group => group.id !== id));
+    };
+
+    const toggleGroupBook = (id: number, bookName: string): void => {
+        setCustomGroups(prev => prev.map(group => {
+            if (group.id !== id) return group;
+            const books = group.books.includes(bookName)
+                ? group.books.filter(b => b !== bookName)
+                : [...group.books, bookName];
+            return { ...group, books };
+        }));
+    };
+
     const plan = useMemo((): Day[] => {
+        const dateOptions = { useDates, startDate, readingDays };
+
+        if (planType !== 'custom') {
+            const preset = getPresetPlan(planType);
+            const days = preset.schedule
+                ? buildScheduledDays(preset.schedule)
+                : buildGroupDays(preset.groups ?? [], cycleDays);
+            return assignDates(days, dateOptions);
+        }
+
+        if (planOrder === 'groups') {
+            const everyGroupRepeats = customGroups.length > 0 && customGroups.every(group => group.repeat);
+            return assignDates(buildGroupDays(customGroups, everyGroupRepeats ? cycleDays : undefined), dateOptions);
+        }
+
         const booksToInclude = selectionMode === 'all' ? BIBLE_BOOKS : BIBLE_BOOKS.filter(b => selectedBooks.includes(b.name));
         if (booksToInclude.length === 0) return [];
 
@@ -239,7 +291,9 @@ const App = () => {
         }
 
         return days;
-    }, [selectionMode, selectedBooks, otChaptersPerDay, ntChaptersPerDay, psalmsPerDay, proverbsPerDay, splitPsalms, splitProverbs, planOrder, useDates, startDate, readingDays, padWithRepeats]);
+    }, [planType, cycleDays, customGroups, selectionMode, selectedBooks, otChaptersPerDay, ntChaptersPerDay, psalmsPerDay, proverbsPerDay, splitPsalms, splitProverbs, planOrder, useDates, startDate, readingDays, padWithRepeats]);
+
+    const planHasPartialChapters = useMemo((): boolean => hasPartialChapters(plan), [plan]);
 
     const audioStats = useMemo((): AudioStats => {
         const allChapters = plan.flatMap(day => day.chapters.map(ch => ch.file));
@@ -316,14 +370,14 @@ const App = () => {
                 bodyContent += `<div class="day-summary" style="page-break-after: always; border-bottom: 2px solid #eee; margin-bottom: 2rem; padding-bottom: 2rem;">
                     <h2>Today's Readings</h2>
                     <ul style="list-style-type: none; padding: 0; font-size: 1.2em;">
-                        ${day.chapters.map(ch => `<li style="margin-bottom: 0.5rem;"><strong>${ch.book} ${ch.chapter}</strong></li>`).join('')}
+                        ${day.chapters.map(ch => `<li style="margin-bottom: 0.5rem;"><strong>${formatChapter(ch)}</strong></li>`).join('')}
                     </ul>
                 </div>`;
 
                 for (const ch of day.chapters) {
-                    const chContent = chapterCache.get(ch.file);
+                    const chContent = filterChapterHtml(chapterCache.get(ch.file) ?? '', ch.startVerse, ch.endVerse);
                     bodyContent += `<div class="chapter-container">
-                        <h2>${ch.book} ${ch.chapter}</h2>
+                        <h2>${formatChapter(ch)}</h2>
                         ${chContent}
                     </div>`;
                 }
@@ -431,6 +485,11 @@ ${licenseInfo}
     };
 
     const generateAudiobook = async (): Promise<void> => {
+        if (planHasPartialChapters) {
+            alert('This plan includes readings that only cover part of a chapter, which the chapter based audio recordings cannot represent. Please generate an EPUB instead.');
+            return;
+        }
+
         if (!('showDirectoryPicker' in window)) {
             alert('Audiobook generation is only supported in Chrome and Edge. Firefox and Safari do not yet support the necessary File System APIs.');
             return;
@@ -605,6 +664,41 @@ License Information:
 
             <section>
                 <h2>2. Reading Selection</h2>
+                <label>Reading Plan:
+                    <select value={planType} onChange={(e: JSX.TargetedEvent<HTMLSelectElement>) => setPlanType(e.currentTarget.value as PlanType)}>
+                        <option value="custom">Custom plan</option>
+                        {PRESET_PLANS.map(preset => (
+                            <option value={preset.id} key={preset.id}>{preset.name}</option>
+                        ))}
+                    </select>
+                </label>
+
+                {planType !== 'custom' && (
+                    <div style={{ marginBottom: 'var(--spacing)' }}>
+                        <p style={{ fontSize: '0.9rem', color: 'var(--muted-color)' }}>{getPresetPlan(planType).description}</p>
+                        {getPresetPlan(planType).groups && (
+                            <>
+                                <div class="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.5rem' }}>
+                                    {getPresetPlan(planType).groups!.map(group => (
+                                        <small key={group.id}>{group.id}. {group.name}</small>
+                                    ))}
+                                </div>
+                                <label style={{ marginTop: '1rem' }}>Number of days:
+                                    <input type="number" value={cycleDays} onInput={(e: JSX.TargetedEvent<HTMLInputElement>) => setCycleDays(parseInt(e.currentTarget.value) || 0)} min="1" />
+                                </label>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {planType === 'custom' && planOrder === 'groups' && (
+                    <p style={{ fontSize: '0.9rem', color: 'var(--muted-color)' }}>
+                        Your reading groups (which books, and how many chapters a day from each) are configured under <strong>Plan Style</strong> below.
+                    </p>
+                )}
+
+                {planType === 'custom' && planOrder !== 'groups' && (
+                <>
                 <div class="grid">
                     <label>
                         <input type="radio" name="selectionMode" value="all" checked={selectionMode === 'all'} onChange={() => setSelectionMode('all')} />
@@ -670,17 +764,22 @@ License Information:
                         {splitProverbs ? '✓ Proverbs Split Out' : 'Split out Proverbs'}
                     </button>
                 </div>
+                </>
+                )}
             </section>
 
             <section>
                 <h2>3. Plan Style</h2>
                 <div class="grid" style={{ alignItems: 'end' }}>
-                    <label>Order:
-                        <select value={planOrder} onChange={(e: JSX.TargetedEvent<HTMLSelectElement>) => setPlanOrder(e.currentTarget.value as PlanOrder)}>
-                            <option value="mixed">Mixed (OT and NT together)</option>
-                            <option value="sequential">Sequential (OT then NT)</option>
-                        </select>
-                    </label>
+                    {planType === 'custom' && (
+                        <label>Order:
+                            <select value={planOrder} onChange={(e: JSX.TargetedEvent<HTMLSelectElement>) => setPlanOrder(e.currentTarget.value as PlanOrder)}>
+                                <option value="mixed">Mixed (OT and NT together)</option>
+                                <option value="sequential">Sequential (OT then NT)</option>
+                                <option value="groups">Custom Groups</option>
+                            </select>
+                        </label>
+                    )}
                     <div style={{ marginBottom: 'var(--spacing)' }}>
                         <label>
                             <input type="checkbox" checked={useDates} onChange={(e: JSX.TargetedEvent<HTMLInputElement>) => setUseDates(e.currentTarget.checked)} />
@@ -689,7 +788,59 @@ License Information:
                     </div>
                 </div>
 
-                {planOrder === 'mixed' && (
+                {planType === 'custom' && planOrder === 'groups' && (
+                    <div style={{ marginBottom: 'var(--spacing)' }}>
+                        <small style={{ display: 'block', marginBottom: '1rem', color: 'var(--muted-color)', lineHeight: 1.4 }}>
+                            Each group is read side by side: every day you read the chosen number of chapters from each group,
+                            in the order the books appear in the Bible.
+                        </small>
+
+                        {customGroups.map(group => (
+                            <article key={group.id} style={{ padding: '1rem', marginBottom: '1rem' }}>
+                                <div class="grid" style={{ alignItems: 'end' }}>
+                                    <label>Group name:
+                                        <input type="text" value={group.name} onInput={(e: JSX.TargetedEvent<HTMLInputElement>) => updateGroup(group.id, { name: e.currentTarget.value })} />
+                                    </label>
+                                    <label>Chapters per day:
+                                        <input type="number" value={group.chaptersPerDay} min="0" onInput={(e: JSX.TargetedEvent<HTMLInputElement>) => updateGroup(group.id, { chaptersPerDay: parseInt(e.currentTarget.value) || 0 })} />
+                                    </label>
+                                </div>
+                                <label>
+                                    <input type="checkbox" checked={group.repeat} onChange={(e: JSX.TargetedEvent<HTMLInputElement>) => updateGroup(group.id, { repeat: e.currentTarget.checked })} />
+                                    Start this group again once it is finished
+                                </label>
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <button type="button" class="outline secondary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', marginBottom: 0, width: 'auto' }} onClick={() => setExpandedGroup(expandedGroup === group.id ? null : group.id)}>
+                                        {expandedGroup === group.id ? 'Hide books' : `Choose books (${group.books.length} selected)`}
+                                    </button>
+                                    <button type="button" class="outline secondary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', marginBottom: 0, width: 'auto' }} onClick={() => updateGroup(group.id, { books: [] })}>Clear books</button>
+                                    <button type="button" class="outline contrast" style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', marginBottom: 0, width: 'auto' }} onClick={() => removeGroup(group.id)}>Remove group</button>
+                                </div>
+                                {expandedGroup === group.id && (
+                                    <div class="book-selection" style={{ marginTop: '1rem' }}>
+                                        {BIBLE_BOOKS.map((book: BibleBook) => (
+                                            <label class="book-item" key={book.name}>
+                                                <input type="checkbox" checked={group.books.includes(book.name)} onChange={() => toggleGroupBook(group.id, book.name)} />
+                                                {book.name}
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </article>
+                        ))}
+
+                        <div class="grid" style={{ alignItems: 'end' }}>
+                            <button type="button" class="outline" onClick={addGroup}>Add group</button>
+                            {customGroups.length > 0 && customGroups.every(group => group.repeat) && (
+                                <label>Number of days:
+                                    <input type="number" value={cycleDays} min="1" onInput={(e: JSX.TargetedEvent<HTMLInputElement>) => setCycleDays(parseInt(e.currentTarget.value) || 0)} />
+                                </label>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {planType === 'custom' && planOrder === 'mixed' && (
                     <div style={{ marginBottom: 'var(--spacing)', padding: '1rem', border: '1px solid var(--muted-border-color)', borderRadius: 'var(--border-radius)' }}>
                         <label style={{ marginBottom: '0.5rem' }}>
                             <input type="checkbox" checked={padWithRepeats} onChange={(e: JSX.TargetedEvent<HTMLInputElement>) => setPadWithRepeats(e.currentTarget.checked)} />
@@ -729,7 +880,7 @@ License Information:
                     {plan.slice(0, 5).map((day, i) => (
                         <div class="preview-item" key={i}>
                             <span class="preview-date">{day.date ? day.date.toLocaleDateString() : `Day ${i + 1}`}</span>
-                            <span>{day.chapters.map(c => `${c.book} ${c.chapter}`).join(', ')}</span>
+                            <span>{day.chapters.map(formatChapter).join(', ')}</span>
                         </div>
                     ))}
 
@@ -741,14 +892,14 @@ License Information:
                             {plan.slice(-5).map((day, i) => (
                                 <div class="preview-item" key={`end-${i}`}>
                                     <span class="preview-date">{day.date ? day.date.toLocaleDateString() : `Day ${plan.length - 4 + i}`}</span>
-                                    <span>{day.chapters.map(c => `${c.book} ${c.chapter}`).join(', ')}</span>
+                                    <span>{day.chapters.map(formatChapter).join(', ')}</span>
                                 </div>
                             ))}
                         </>
                     ) : plan.slice(5).map((day, i) => (
                         <div class="preview-item" key={`mid-${i}`}>
                             <span class="preview-date">{day.date ? day.date.toLocaleDateString() : `Day ${6 + i}`}</span>
-                            <span>{day.chapters.map(c => `${c.book} ${c.chapter}`).join(', ')}</span>
+                            <span>{day.chapters.map(formatChapter).join(', ')}</span>
                         </div>
                     ))}
                 </div>
@@ -757,7 +908,7 @@ License Information:
                         <button onClick={generateEpub} disabled={isGenerating || plan.length === 0}>
                             {isGenerating ? 'Generating...' : 'Download EPUB'}
                         </button>
-                        <button onClick={generateAudiobook} disabled={isGenerating || plan.length === 0 || bibleVersion !== 'bsb'} class="secondary">
+                        <button onClick={generateAudiobook} disabled={isGenerating || plan.length === 0 || bibleVersion !== 'bsb' || planHasPartialChapters} class="secondary">
                             {isGenerating ? 'Generating...' : 'Generate Audiobook (BSB only)'}
                         </button>
                     </div>
@@ -767,6 +918,9 @@ License Information:
                             <p style={{ margin: 0 }}><strong>Audiobook Info:</strong></p>
                             <ul style={{ margin: '0.5rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem' }}>
                                 <li>Audio is only available for BSB (Berean Standard Bible).</li>
+                                {planHasPartialChapters && (
+                                    <li style={{ color: 'var(--secondary)' }}>This plan includes part-chapter readings, which the chapter based recordings cannot represent, so only EPUB generation is available.</li>
+                                )}
                                 <li>Estimated: {audioStats.downloadSizeMB}MB download, {audioStats.totalSizeMB}MB total on disk.</li>
                                 <li>Requires a folder selection to save daily MP3 files.</li>
                                 <li style={{ color: 'var(--secondary)' }}>Note: Audiobook generation is only supported in <strong>Chrome</strong> and <strong>Edge</strong>.</li>

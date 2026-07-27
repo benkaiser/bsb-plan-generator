@@ -5,9 +5,11 @@ A client-side static web application to generate custom Bible reading plans as E
 ## Features
 
 - **Custom Selection**: Choose specific books or use presets (Gospels, Pentateuch, etc.).
+- **Well-Known Plans**: Generate Professor Horner's Bible Reading System or the M'Cheyne One Year Reading Plan out of the box.
 - **Flexible Scheduling**:
   - **Mixed Mode**: Read Old Testament, New Testament, Psalms, and Proverbs simultaneously.
   - **Sequential Mode**: Read through the selected books in order.
+  - **Custom Groups**: Build any number of reading groups, choose the books in each group and how many chapters a day to read from it, and optionally restart a group once it is finished.
   - **Specific Reading Days**: Choose which days of the week you want to read.
   - **Date Support**: Toggle between dated plans and simple "Day 1, Day 2" plans.
 - **Audiobook Generation**:
@@ -24,10 +26,15 @@ A client-side static web application to generate custom Bible reading plans as E
 - **EPUB Generation**: Supported in all modern browsers (Chrome, Edge, Firefox, Safari).
 - **Audiobook Generation**: Requires the **File System Access API**, which is currently only supported in **Chrome** and **Edge**. Firefox and Safari users can still generate EPUB plans but will not be able to generate audiobooks.
 
+Audiobooks are built from whole chapter recordings, so plans that include part-chapter readings (such as the M'Cheyne plan, which splits Luke 1, Psalm 78 and Psalm 119) can only be generated as EPUBs.
+
 ## Project Structure
 
-- \`src/app.js\`: Main Preact application logic, EPUB generation, and Audiobook assembly.
-- \`src/bibleData.js\`: Metadata for Bible books (chapter counts, file mapping).
+- \`src/app.tsx\`: Main Preact application logic, EPUB generation, and Audiobook assembly.
+- \`src/bibleData.ts\`: Metadata for Bible books (chapter counts, file mapping).
+- \`src/planLogic.ts\`: Plan building helpers (reading groups, reference parsing, verse range extraction).
+- \`src/presetPlans.ts\` and \`src/mcheynePlan.ts\`: Definitions for the well-known reading plans.
+- \`tests/\`: Tests for the plan logic, run with \`npm test\`.
 - \`audio_processed/\`: Optimized MP3 bitstreams for client-side concatenation.
 - \`bsb_unzipped/\`: Pre-processed BSB source files (headers/navigation removed).
 - \`dist/\`: Built application files ready for hosting.
@@ -51,6 +58,10 @@ If you wish to modify the application:
 3. Build the application after making changes:
    ```bash
    npm run build
+   ```
+4. Run the tests:
+   ```bash
+   npm test
    ```
 
 ## License
