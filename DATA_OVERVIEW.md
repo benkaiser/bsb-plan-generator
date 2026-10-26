@@ -42,5 +42,16 @@ For any given book and chapter:
 
 ## Scripts
 
-- `scripts/download_audio.js`: Downloads the raw audio files from `https://tim.z73.com/hays/audio/`. It handles book-specific ID mappings (e.g., `GEN` -> `Gen`, `SNG` -> `Son`) and pads chapter numbers.
-- `scripts/process_audio.sh`: A bash script that uses `ffmpeg` to process the raw audio files into the optimized format in parallel (10 files at a time).
+- `scripts/download_audio.js`: Downloads raw recordings from Bible Hub's Hays source, `https://openbible.com/audio/hays/`. Filenames use canonical book codes, for example `BSB_41_Mrk_004_H.mp3`. Existing files are decoded and validated before being skipped. Downloads are written to temporary files, validated, then atomically renamed; HTTP, interrupted-transfer and decoding failures fail the command without replacing existing files.
+- `scripts/process_audio.sh`: Runs the validated processing pipeline with four workers. Existing outputs are only skipped when they decode correctly and match the source duration within 150 ms. Invalid sources are rejected; replacement outputs are validated before being atomically published.
+- `node scripts/audio_tools.js audit`: Fully decodes both raw and processed recordings and checks advertised versus decoded durations and source/output agreement. Exits unsuccessfully if any chapter fails.
+
+These commands require Node.js 18+ and `ffmpeg`/`ffprobe` on `PATH`.
+
+### Truncated recording repair
+
+An audit of all 1,189 chapter pairs found 20 truncated original downloads: Song of Solomon 1-8 (672-679), Joel 1-3 (877-879), Nahum 1-3 (901-903), and Mark 1-6 (958-963). Their MP3 headers still advertised the original full duration, but decoding stopped early. Mark 4, for example, advertised about 350 seconds but only decoded about 68 seconds. The old processing script compressed those fragments and then skipped the existing outputs on every subsequent run.
+
+Those raw files were replaced from the complete Bible Hub Hays recordings and their processed counterparts rebuilt. All 1,189 raw/processed pairs subsequently passed the full decoding audit.
+
+The replacement recordings are not byte-for-byte or timing-identical to the old source: lead-in and internal pauses can differ. Downstream verse/word alignments must be regenerated against the repaired processed files, not stretched from the truncated alignments or corrected using a single chapter-wide offset.

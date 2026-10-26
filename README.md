@@ -34,7 +34,7 @@ Audiobooks are built from whole chapter recordings, so plans that include part-c
 - \`src/bibleData.ts\`: Metadata for Bible books (chapter counts, file mapping).
 - \`src/planLogic.ts\`: Plan building helpers (reading groups, reference parsing, verse range extraction).
 - \`src/presetPlans.ts\` and \`src/mcheynePlan.ts\`: Definitions for the well-known reading plans.
-- \`tests/\`: Tests for the plan logic, run with \`npm test\`.
+- \`tests/\`: Plan logic and audio pipeline regression tests, run with \`npm test\` (audio tests require \`ffmpeg\` and \`ffprobe\`).
 - \`audio_processed/\`: Optimized MP3 bitstreams for client-side concatenation.
 - \`bsb_unzipped/\`: Pre-processed BSB source files (headers/navigation removed).
 - \`dist/\`: Built application files ready for hosting.

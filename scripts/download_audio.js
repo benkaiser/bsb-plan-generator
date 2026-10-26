@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
+const { downloadAudio, validateAudio } = require('./audio_tools.js');
 
 const bookCodes = [
   'GEN', 'EXO', 'LEV', 'NUM', 'DEU', 'JOS',
@@ -86,50 +86,11 @@ const bibleData = [
 ];
 
 function ensureAudioBookId(bookCode) {
-  const manualMappings = {
-    'SNG': 'Son',
-    'JOL': 'Joe',
-    'NAM': 'Nah',
-    'MRK': 'Mar',
-    'JHN': 'Joh',
-    'PHP': 'Phi',
-    '1JN': '1Jo',
-    '2JN': '2Jo',
-    '3JN': '3Jo',
-    'JAS': 'Jam'
-  };
-
-  if (manualMappings[bookCode]) {
-    return manualMappings[bookCode];
-  }
-
   // Convert GEN to Gen, 1SA to 1Sa, PSA to Psa
   if (bookCode.match(/^\d/)) {
     return bookCode.charAt(0) + bookCode.charAt(1).toUpperCase() + bookCode.slice(2).toLowerCase();
   }
   return bookCode.charAt(0).toUpperCase() + bookCode.slice(1).toLowerCase();
-}
-
-async function downloadFile(url, dest) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https.get(url, (response) => {
-      if (response.statusCode !== 200) {
-        file.close();
-        fs.unlink(dest, () => {});
-        reject(new Error(`Failed to download ${url}: ${response.statusCode}`));
-        return;
-      }
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close(resolve);
-      });
-    }).on('error', (err) => {
-      file.close();
-      fs.unlink(dest, () => {});
-      reject(err);
-    });
-  });
 }
 
 async function run() {
@@ -145,15 +106,18 @@ async function run() {
     const audioBookId = ensureAudioBookId(code);
 
     for (let chapter = 1; chapter <= book.chapters; chapter++) {
-      let chapterStr = chapter.toString().padStart(2, '0');
-      if (audioBookId === 'Psa') {
-        chapterStr = chapter.toString().padStart(3, '0');
-      }
-      const url = `https://tim.z73.com/hays/audio/${audioBookId}${chapterStr}.mp3`;
+      const chapterStr = chapter.toString().padStart(3, '0');
+      const bookStr = (i + 1).toString().padStart(2, '0');
+      const url = `https://openbible.com/audio/hays/BSB_${bookStr}_${audioBookId}_${chapterStr}_H.mp3`;
       const dest = path.join(outputDir, `${book.startFile + chapter - 1}.mp3`);
 
       if (fs.existsSync(dest)) {
-        continue;
+        try {
+          await validateAudio(dest);
+          continue;
+        } catch (error) {
+          console.error(`Replacing invalid ${dest}: ${error.message}`);
+        }
       }
 
       tasks.push({ url, dest });
@@ -162,17 +126,18 @@ async function run() {
 
   console.log(`Total files to download: ${tasks.length}`);
 
-  const limit = 20;
+  const limit = 4;
   for (let i = 0; i < tasks.length; i += limit) {
     const batch = tasks.slice(i, i + limit);
     console.log(`Downloading batch ${i / limit + 1} / ${Math.ceil(tasks.length / limit)}...`);
-    await Promise.all(batch.map(task => {
-      return downloadFile(task.url, task.dest).catch(err => {
-        console.error(`Error downloading ${task.url}: ${err.message}`);
-      });
-    }));
+    await Promise.all(batch.map(task => downloadAudio(task.url, task.dest)));
   }
   console.log('Finished downloading all files.');
 }
 
-run();
+if (require.main === module) run().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
+module.exports = { bibleData, bookCodes, ensureAudioBookId };
